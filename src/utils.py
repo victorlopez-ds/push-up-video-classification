@@ -3,6 +3,9 @@ import mediapipe as mp
 import numpy as np
 import os
 
+from sklearn.utils import resample
+from sklearn.metrics import accuracy_score
+
 mp_pose = mp.solutions.pose
 
 def extract_xy_sequence(video_path,
@@ -202,3 +205,38 @@ def extract_frame_from_video(video_path, frame_idx=None, time_sec=None, as_bgr=T
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     return frame
 
+
+def calcular_bootstrap_intervalo(y_true, y_pred, n_iterations=1000, alpha=0.95):
+    """
+    Calcula el intervalo de confianza usando Bootstrapping sobre las predicciones.
+    """
+    stats = []
+    
+    # 1. Bucle de simulaciones (1000 veces)
+    for i in range(n_iterations):
+        # Generamos índices aleatorios con reemplazo
+        # (Simula meter la mano en la bolsa y sacar bolas repetidas)
+        indices = resample(range(len(y_pred)), replace=True)
+        
+        # Creamos el "dataset virtual"
+        sample_pred = y_pred[indices]
+        sample_true = y_true[indices]
+        
+        # Calculamos el accuracy de esta simulación
+        score = accuracy_score(sample_true, sample_pred)
+        stats.append(score)
+    
+    # 2. Ordenamos los 1000 resultados de menor a mayor
+    stats = np.sort(stats)
+    
+    # 3. Calculamos los límites (cortamos las colas)
+    lower_percentile = ((1.0 - alpha) / 2.0) * 100
+    upper_percentile = (alpha + ((1.0 - alpha) / 2.0)) * 100
+    
+    lower = np.percentile(stats, lower_percentile)
+    upper = np.percentile(stats, upper_percentile)
+    
+    print(f"Accuracy Promedio (Bootstrap): {np.mean(stats):.4f}")
+    print(f"Intervalo de Confianza {int(alpha*100)}%: [{lower:.4f}, {upper:.4f}]")
+    
+    return lower, upper, stats
